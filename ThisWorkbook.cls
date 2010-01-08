@@ -9,14 +9,15 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = True
 Option Explicit
 
-
-Private Sub Workbook_Activate()
-Run "YahooMenuBar.AddYahooMenu"
+Private Sub Workbook_AddinInstall()
+    Run "YahooMenuBar.AddYahooMenu"
 End Sub
 
-Private Sub Workbook_Deactivate()
-Run "YahooMenuBar.DeleteYahooMenu"
+Private Sub Workbook_AddinUninstall()
+    Run "YahooMenuBar.DeleteYahooMenu"
 End Sub
+
+
 
 
 
