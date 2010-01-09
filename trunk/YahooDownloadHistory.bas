@@ -2,92 +2,126 @@ Attribute VB_Name = "YahooDownloadHistory"
 Option Explicit
 
 Public Sub ShowYDHForm()
-    ydhForm.show
+    ydhForm.Show
 End Sub
 
 '
-' Download price history from finance.yahoo.com and place them in target range
+' Download history for several securites (bulk download)
+' The list of tickers is in range rTics
+'
+Public Sub loadBulkDataToRange(rTics As Range, startDate As Date, endDate As Date, freq As String, target As Range, _
+        Optional showDate As Boolean, Optional showOpen As Boolean, _
+        Optional showHigh As Boolean, Optional showLow As Boolean, _
+        Optional showClose As Boolean, Optional showVolume As Boolean, _
+        Optional showAdjClose As Boolean)
+    Dim rTarget As Range
+    Dim nOfCols As Integer, nOfTics As Integer, i As Integer
+    Dim ticker As String
+    nOfCols = calculateNOfColumns(showDate, showOpen, showHigh, showLow, showClose, showVolume, showAdjClose)
+    nOfTics = rTics.Rows.Count
+    For i = 0 To nOfTics - 1
+        ticker = rTics.Cells(1, 1).Offset(i, 0)
+        Set rTarget = target.Cells(1, 1).Offset(0, i * (nOfCols + 2))
+        loadDataToRange ticker, startDate, endDate, freq, rTarget, showDate, showOpen, showHigh, showLow, showClose, showVolume, showAdjClose
+    Next i
+End Sub
+'
+' Download single security history from finance.yahoo.com and place them in target range
 '
 Public Sub loadDataToRange(ticker As String, startDate As Date, endDate As Date, freq As String, target As Range, _
-        Optional showDate As Boolean = True, Optional showOpen As Boolean = False, _
-        Optional showHigh As Boolean = False, Optional showLow As Boolean = False, _
-        Optional showClose As Boolean = False, Optional showVolume As Boolean = False, _
-        Optional showAdjClose As Boolean = True)
+        Optional showDate As Boolean, Optional showOpen As Boolean, _
+        Optional showHigh As Boolean, Optional showLow As Boolean, _
+        Optional showClose As Boolean, Optional showVolume As Boolean, _
+        Optional showAdjClose As Boolean)
     ' load from Yahoo
     Dim result() As Variant
-    result = ydh(ticker, startDate, endDate, freq)
+    result = ydh(ticker, startDate, endDate, freq, _
+                showDate, showOpen, showHigh, showLow, showClose, showVolume, showAdjClose)
     
     ' Place in target range
     Dim nOfRows As Integer, nOfCols As Integer, rowIx As Integer, colIx As Integer
     nOfRows = UBound(result, 1)
     nOfCols = UBound(result, 2)
-    If nOfCols < 6 Then
+    If nOfCols < 1 Or nOfCols > 6 Then
         MsgBox "Error in load. nOfCols=" & nOfCols & ", expected 6"
         Exit Sub
     End If
-    With target.Cells(1, 1)
-        For rowIx = 0 To nOfRows
-            colIx = 0
-            If showDate = True Then
-                With .Offset(rowIx, colIx)
-                    .Value = result(rowIx, 0)
-                    .NumberFormat = "yyyy-mm-dd"
-                End With
-                colIx = colIx + 1
-            End If
-            If showOpen = True Then
-                With .Offset(rowIx, colIx)
-                    .Value = result(rowIx, 1)
-                    .NumberFormat = "0.00"
-                End With
-                colIx = colIx + 1
-            End If
-            If showHigh = True Then
-                With .Offset(rowIx, colIx)
-                    .Value = result(rowIx, 2)
-                    .NumberFormat = "0.00"
-                End With
-                colIx = colIx + 1
-            End If
-            If showLow = True Then
-                With .Offset(rowIx, colIx)
-                    .Value = result(rowIx, 3)
-                    .NumberFormat = "0.00"
-                End With
-                colIx = colIx + 1
-            End If
-            If showClose = True Then
-                With .Offset(rowIx, colIx)
-                    .Value = result(rowIx, 4)
-                    .NumberFormat = "0.00"
-                End With
-                colIx = colIx + 1
-            End If
-            If showVolume = True Then
-                With .Offset(rowIx, colIx)
-                    .Value = result(rowIx, 5)
-                    .NumberFormat = "#,##0"
-                End With
-                colIx = colIx + 1
-            End If
-            If showAdjClose = True Then
-                With .Offset(rowIx, colIx)
-                    .Value = result(rowIx, 6)
-                    .NumberFormat = "0.00"
-                End With
-                colIx = colIx + 1
-            End If
-        Next rowIx
-        .Offset(0, 0).Value = ticker  ' write security ticker in the upper left corner
-    End With ' target
+    With Range(target.Cells(1, 1), target.Cells(1, 1).Offset(nOfRows, nOfCols))
+        .Value = result
+        .Cells(1, 1) = ticker
+        .Font.Bold = False
+        .Rows(1).Font.Bold = True
+        .NumberFormat = "#,##0.00"
+        If showDate = True Then .Columns(1).NumberFormat = "YYYY-mm-dd"
+    End With ' region
 End Sub
 
-'
-' Download historical prices from finance.yahoo.com
-'
-Public Function ydh(ticker As String, startDate As Date, endDate As Date, freq As String)
-Attribute ydh.VB_Description = "Yahoo Download History array function. Loads historical data for given ticker from Yahoo server. Enter security ticker, start of the period, end of the period and data frequency. Use CTRL-SHIFT-Enter!"
+Public Function ydh(ticker As String, startDate As Date, endDate As Date, freq As String, _
+        Optional showDate As Boolean = True, Optional showOpen As Boolean = False, _
+        Optional showHigh As Boolean = False, Optional showLow As Boolean = False, _
+        Optional showClose As Boolean = False, Optional showVolume As Boolean = False, _
+        Optional showAdjClose As Boolean = True)
+Attribute ydh.VB_Description = "Array formula downloading historical quotes from Yahoo Finance. "
 Attribute ydh.VB_ProcData.VB_Invoke_Func = " \n14"
+    ' load from Yahoo
+    Dim data() As Variant
+    data = ydhLoadData(ticker, startDate, endDate, freq)
+    ' Check sanity
+    If UBound(data, 1) < 6 Then
+        MsgBox "Error in load. nOfCols=" & UBound(data, 1) & ", expected 6"
+        Exit Function
+    End If
+    
+    ' filter only requested columns
+    Dim nOfRows As Integer, nOfCols As Integer, rowIx As Integer, colIx As Integer
+    nOfRows = UBound(data, 1)
+    nOfCols = calculateNOfColumns(showDate, showOpen, showHigh, showLow, showClose, showVolume, showAdjClose)
+    
+    If nOfCols < 1 Or nOfCols > 6 Then
+        ydh = "Wrong input. Select column"
+        Exit Function
+    End If
+    ReDim result(nOfRows, nOfCols)
+    For rowIx = 0 To nOfRows
+        colIx = 0
+        If showDate = True Then
+            result(rowIx, colIx) = data(rowIx, 0)
+            colIx = colIx + 1
+        End If
+        If showOpen = True Then
+            result(rowIx, colIx) = data(rowIx, 1)
+            colIx = colIx + 1
+        End If
+        If showHigh = True Then
+            result(rowIx, colIx) = data(rowIx, 2)
+            colIx = colIx + 1
+        End If
+        If showLow = True Then
+            result(rowIx, colIx) = data(rowIx, 3)
+            colIx = colIx + 1
+        End If
+        If showClose = True Then
+            result(rowIx, colIx) = data(rowIx, 4)
+            colIx = colIx + 1
+        End If
+        If showVolume = True Then
+            result(rowIx, colIx) = data(rowIx, 5)
+            colIx = colIx + 1
+        End If
+        If showAdjClose = True Then
+            result(rowIx, colIx) = data(rowIx, 6)
+            colIx = colIx + 1
+        End If
+    Next rowIx
+    ydh = result
+End Function
+
+'
+' Download raw historical data from finance.yahoo.com
+'
+Private Function ydhLoadData(ticker As String, startDate As Date, endDate As Date, freq As String)
+Attribute ydhLoadData.VB_Description = "Yahoo Download History array function. Loads historical data for given ticker from Yahoo server. Enter security ticker, start of the period, end of the period and data frequency. Use CTRL-SHIFT-Enter!"
+Attribute ydhLoadData.VB_ProcData.VB_Invoke_Func = " \n14"
     ' create URL
     Dim occUrl As String
     occUrl = "http://ichart.finance.yahoo.com/table.csv?s=" & ticker & _
@@ -124,6 +158,14 @@ Attribute ydh.VB_ProcData.VB_Invoke_Func = " \n14"
             result(rowIx, j) = field(j)
         Next j
     Next i
-    ydh = result
+    ydhLoadData = result
 End Function
+
+Private Function calculateNOfColumns(Optional showDate As Boolean, Optional showOpen As Boolean, _
+                                    Optional showHigh As Boolean, Optional showLow As Boolean, _
+                                    Optional showClose As Boolean, Optional showVolume As Boolean, _
+                                    Optional showAdjClose As Boolean)
+    calculateNOfColumns = Abs(CInt(showDate) + CInt(showOpen) + CInt(showHigh) + CInt(showLow) + CInt(showClose) + CInt(showVolume) + CInt(showAdjClose)) - 1
+End Function
+
 
