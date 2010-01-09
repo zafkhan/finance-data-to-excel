@@ -27,10 +27,16 @@ Sub AddYahooMenu()
          
     '(6) Working with our new Control, add a sub control and give it a Caption and tell it which macro to run (OnAction).
      With cbcCutomMenu.Controls.Add(Type:=msoControlButton)
-        .Caption = "Yahoo Download History"
+        .Caption = "Get History - Single Ticker"
         .OnAction = "YahooDownloadHistory.ShowYDHForm"
-        .FaceId = 29
+        .FaceId = 346
      End With
+     With cbcCutomMenu.Controls.Add(Type:=msoControlButton)
+        .Caption = "Get History - Bulk"
+        .OnAction = "YahooDownloadHistory.ShowYDHBulkForm"
+        .FaceId = 527
+     End With
+
 End Sub
 
 Sub DeleteYahooMenu()
