@@ -5,6 +5,10 @@ Public Sub ShowYDHForm()
     ydhForm.Show
 End Sub
 
+Public Sub ShowYDHBulkForm()
+    ydhBulkForm.Show
+End Sub
+
 '
 ' Download history for several securites (bulk download)
 ' The list of tickers is in range rTics
